@@ -1,52 +1,57 @@
 package com.cos.security1.config;
 
+import com.cos.security1.config.oauth.PrincipalOauth2UserService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 import static org.springframework.security.authorization.AuthorityAuthorizationManager.hasRole;
 
 @Configuration
-@EnableWebSecurity // 스프링 시큐리티 필터(SecurityConfig)가 스프링 필터체인에 등록됨
-@EnableGlobalMethodSecurity(securedEnabled = true, prePostEnabled = true, jsr250Enabled = true)
-public class SecurityConfig {
+@EnableWebSecurity // 활성화, 스프링 시큐리티 필터(SecurityConfig)가 스프링 필터체인에 등록됨
+@EnableGlobalMethodSecurity(securedEnabled = true, prePostEnabled = true)
+// securedEnabled => secured 어노테이션 활성화
+// prePostEnabled => preAuthorize, postAuthorize 어노테이션 활성화
+//
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(AbstractHttpConfigurer::disable);
-        http
-                .authorizeHttpRequests(
-                        authorize -> authorize
-                                .requestMatchers("/user/**").authenticated()
-                                .requestMatchers("/admin/**").hasRole("ROLE_ADMIN")
-                                .anyRequest()
-                                .permitAll()
+    @Autowired
+    private PrincipalOauth2UserService principalOauth2UserService;
 
-                ).exceptionHandling((exceptionConfig) ->
-                        exceptionConfig
-                                .authenticationEntryPoint(unauthorizedEntryPoint)
-                                .accessDeniedHandler(accessDeniedHandler)
-                ) // 401 403 관련 예외처리
-                .formLogin((formLogin) ->
-                        formLogin
-                                .loginPage("/login/login")
-                                .usernameParameter("username")
-                                .passwordParameter("password")
-                                .loginProcessingUrl("/login/login-proc")
-                                .defaultSuccessUrl("/", true)
-                )
-                .logout((logoutConfig) ->
-                        logoutConfig.logoutSuccessUrl("/")
-                )
-        return http.build();
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+
+        http.csrf().disable(); //
+        http.authorizeRequests()
+                .antMatchers("/user/**").authenticated() // authenticated() 인증 후 접속 가능(인증만 되면 들어갈 수 있는 주소)
+                .antMatchers("/manager/**").access("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER')") // .access() 인증 + 권한
+                .antMatchers("/admin/**").access("hasRole('ROLE_ADMIN')")// .access() 인증 + 권한
+                .anyRequest().permitAll()// 다른 요청들은 인증없이 가능
+                .and()
+                .formLogin()
+                .loginPage("/loginForm") // 권한이 없으면 로그인페이지로 이동
+                // usernameParameter() => input 태그에서 name="username2"로 커스터마이징하기 위한 설정, PrincipalDetailsService에서 loadUserByUsername(String username2) 로 받아야 정상 작동
+                //.usernameParameter("username2")
+                .loginProcessingUrl("/login") // /login 주소가 호출이 되면 시큐리티가 낚아채서 대신 로그인을 진행
+                .defaultSuccessUrl("/")
+                .and()
+                .oauth2Login()
+                .loginPage("/loginForm") // google 로그인이 완료된 뒤의 후처리가 필요.
+                // 1.코드받기(인증), 2.엑세스토큰(권한), 3.사용자프로필 정보를 가져옴,
+                // 4-1. 그 정보를 토대로 회원가입 자동 진행
+                .userInfoEndpoint()// Tip. 코드x, (엑세스토큰 + 사용자프로필정보 o)
+                .userService(principalOauth2UserService);
+        // 4-2 . (이메일,전화번호,이름,아이디), 추가 정보가 필요할 때 쇼핑몰 => (집주소), 백화점몰 => (vip등급,일반등급)
+
     }
 }
-
 /*
     CSRF
     Cross site Request forgery로 사이트 간 위조 요청인데,
