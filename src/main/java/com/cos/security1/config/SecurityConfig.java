@@ -49,7 +49,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .userInfoEndpoint()// Tip. 코드x, (엑세스토큰 + 사용자프로필정보 o)
                 .userService(principalOauth2UserService);
         // 4-2 . (이메일,전화번호,이름,아이디), 추가 정보가 필요할 때 쇼핑몰 => (집주소), 백화점몰 => (vip등급,일반등급)
-
+        http.rememberMe(); // remember-me 토큰 사용(로그인 유지하기 기능), remember-me 토큰 브라우저를 꺼도 장시간(기본 2주) 남아있는다. remember-me 토큰을 사용하면 셰션을 다시 연결시켜준다. 주의사항으로는 서버를 끄게 되면 브라우저에는 remember-me 토큰 남아있지만 서버에는 remember-me 토큰을 잃어버리기때문에 로그아웃이 된다.
+        // RememberMeAuthenticationFilter 장시간 로그인을 유지시킬 때 사용, 설정으로 remember-me name이나 시간 설정 가능
     }
 }
 /*
